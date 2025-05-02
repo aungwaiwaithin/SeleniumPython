@@ -1,0 +1,329 @@
+from typing import Dict, Any
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from datetime import  datetime
+
+class ReportGenerator:
+    def __init__(self,report_title="WW Report",output_file="WWCustomizedReport.html"):
+        self.report_title=report_title
+        self.output_file=output_file
+        self.test_results:Dict[str,Any]={"Passed":0,"Failed":0,"Total_Test_Count":0,"Tests":[]}
+        self.start_time:float=0
+
+    def start_timer(self):
+        self.start_time=time.time()
+
+    def generate_report(self):
+        end_time=time.time()
+        duration=end_time - self.start_time
+        total_tests=self.test_results["Total_Test_Count"]
+        passed_tests=self.test_results["Passed"]
+        failed_tests=self.test_results['Failed']
+
+        pass_percentage=(passed_tests/total_tests)*100 if total_tests>0 else 0
+        fail_percentage = 100 - pass_percentage
+
+        progress_bar_width_pass = f"{pass_percentage:.2f}%"
+        progress_bar_width_fail = f"{fail_percentage:.2f}%"
+
+        html=f"""<!DOCTYPE html>
+                <html lang="en">
+                <head>
+                <meta charset="UTF-8">
+                <title>{self.report_title}</title>
+                <style>
+                body{{font-family: Cambria;}}
+                .container{{
+                    width: 80%;
+                margin: auto;
+                }}
+                .summary{{
+                    display: flex;
+                justify-content: space-around;
+                margin-bottom: 20px;
+                }}
+                .progress {{
+                    width: 100%;
+                    height: 20px;
+                    background-color: #eee; /* Background for empty progress */
+                    border-radius: 10px;
+                    overflow: hidden;
+                    display: flex; /* Allows stacking the bars horizontally */
+                    }}
+                    
+                .progress-bar-pass{{
+                    height: 100%; background-color:green ;width:{progress_bar_width_pass}%;border-radius: 5px;
+                }}
+                 .progress-bar-fail{{
+                    height: 100%; background-color:red ;width:{progress_bar_width_fail}%;border-radius: 5px;
+                }}
+                .progress-bar {{
+                                height: 100%;
+                                border-radius: 5px;
+                                transition: width 0.5s ease-in-out;}}
+                                
+          
+                .test-list{{
+                    border-collapse: collapse;
+                width: 100%;
+                }}
+                .test-list th,.test-list td{{
+                    border:1px solid #ddd;padding: 8px ;text-align: left;vertical-align: top;
+                }}
+                .passed{{
+                    color: green;
+                }}
+                .failed{{
+                    color:red
+                }}
+                </style>
+                </head>
+                <body>
+                <div class="container">
+                <p>Generated on : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p>Total Duration : {duration:.2f} sec</p>
+                <div class="summary">
+                <div>Total Tests : {total_tests}</div>
+                <div class="passed">Passed : {passed_tests} (<span class="percentage">{pass_percentage:.2f}</span>)</div>
+                <div class="failed">Failed : {failed_tests}(<span class="percentage">{fail_percentage:.2f} </span>)</div>
+                </div>
+                
+                <div class="progress">
+                    <div class="progress-bar-pass" style="width: {pass_percentage}%;"></div>
+                    <div class="progress-bar-fail" style="width: {fail_percentage}%;"></div>
+                </div>
+                
+                <h2>Test Results</h2>
+                <table class="test-list">
+                <tr>
+                <th>Test Name</th>
+                <th>Status</th>
+                <th>Error</th>
+                </tr>"""
+        for test in self.test_results["Tests"]:
+            html+=f'''<tr>
+            <td>{test['name']}</td>
+            <td class={test['status']}>{test['status']}</td>
+            <td class="error-message">{test.get("error",'')}</td>
+            </tr>'''
+        html+='''</table>
+            </div>
+            </body>
+            </html>'''
+
+        with open(self.output_file,'w',encoding='utf-8') as f:
+            f.write(html)
+        print(f'Report generated :{self.output_file}')
+
+        print(f"Total: {total_tests}, Passed: {passed_tests}, Failed: {failed_tests}")
+        print(f"Pass Percentage: {pass_percentage}, Fail Percentage: {fail_percentage}")
+
+    def add_test_result(self, name, status, error=None):
+        self.test_results["Total_Test_Count"] += 1
+        if status.lower() == "passed":
+            self.test_results["Passed"] += 1
+        elif status.lower() == "failed":
+            self.test_results["Failed"] += 1
+        self.test_results["Tests"].append({"name": name, "status": status, "error": error or ""})
+
+class SwagTest:
+    def __init__(self,report_generator:ReportGenerator):
+        self.driver = webdriver.Firefox()
+        self.report_generator=report_generator
+
+    def open_browser(self):
+        try:
+            self.driver.get("https://www.saucedemo.com/")
+            print("Test 1 : Open browser success!")
+
+            assert  "Swag Labs" in self.driver.title , f'Expected title is Swag Labs, but got {self.driver.title}  '
+            self.report_generator.add_test_result("Test 1","passed")
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 1","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 1","failed",str(e))
+
+
+    def login_test(self):
+        try:
+            self.driver.find_element(By.ID, "user-name").send_keys("standard_user")
+            time.sleep(2)
+            self.driver.find_element(By.XPATH, "//*[@id='password']").send_keys("secret_sauce", Keys.RETURN)
+
+            assert  "Swag Labssss" in self.driver.title , (f'Expected title is Swag Labsss, '
+                                                           f'but got {self.driver.title}  ')
+
+            self.report_generator.add_test_result("Test 2","passed")
+            print("Test 2 : Login Success!")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 2","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 2","failed",str(e))
+
+    def check_page_go(self):
+        try:
+            expected_url = "https://www.saucedemo.com/inventory.html"
+            actual_url = self.driver.current_url
+
+            assert expected_url == actual_url
+            assert "Swag Labs" in self.driver.title
+
+            self.report_generator.add_test_result("Test 3","passed")
+            print("Test 3 : Verification Success!")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 3","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 3","failed",str(e))
+
+
+    def add_to_cart(self):
+        try:
+            self.driver.find_element(By.ID, "add-to-cart-sauce-labs-backpack").click()
+            time.sleep(2)
+            self.driver.find_element(By.ID, "add-to-cart-sauce-labs-bolt-t-shirt").click()
+            time.sleep(2)
+            self.driver.find_element(By.ID, "add-to-cart-sauce-labs-fleece-jacket").click()
+
+            self.report_generator.add_test_result("Test 4","passed")
+            print("Test 4 : Add item to Cart")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 4","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 4","failed",str(e))
+
+    def remove_item(self):
+        try:
+            self.driver.find_element(By.ID, "remove-sauce-labs-fleece-jacket").click()
+
+            self.report_generator.add_test_result("Test 5","passed")
+            print("Test 5 : Remove 1 item")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 5","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 5","failed",str(e))
+
+    def view_order_items(self):
+        try:
+            self.driver.find_element(By.CLASS_NAME, "shopping_cart_link").click()
+
+            self.report_generator.add_test_result("Test 6","passed")
+            print("Test 6 : View Order Item")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 6","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 6","failed",str(e))
+
+
+    def check_cart_page_go(self):
+        try:
+            expected_url = "https://www.saucedemo.com/cart.html"
+            actual_url = self.driver.current_url
+
+            assert expected_url == actual_url
+            assert "Swag Labs" in self.driver.title
+
+            self.report_generator.add_test_result("Test 7","passed")
+            print("Test 7 : check cart page success")
+
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 7","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 7","failed",str(e))
+
+    def view_cart_ditail(self):
+        try:
+            self.driver.find_element(By.XPATH, "/html/body/div/div/div/div[2]/div/div[1]/div[3]/div[2]/a/div").click()
+
+            self.driver.find_element(By.CLASS_NAME, "shopping_cart_link").click()
+
+            self.driver.find_element(By.XPATH, "/html/body/div/div/div/div[2]/div/div[1]/div[4]/div[2]/a/div").click()
+
+            self.driver.find_element(By.CLASS_NAME, "shopping_cart_link").click()
+
+            self.report_generator.add_test_result("Test 8","passed")
+            print("Test 8 : view cart ditail Success!")
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 8","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 8","failed",str(e))
+
+    def check_out(self):
+        try:
+            self.driver.find_element(By.ID, "checkout").click()
+            self.driver.find_element(By.ID, "first-name").send_keys("QA")
+            #time.sleep(2)
+            self.driver.find_element(By.ID, "last-name").send_keys("Wai Wai")
+            #time.sleep(2)
+            self.driver.find_element(By.ID, "postal-code").send_keys("11111")
+            #time.sleep(2)
+            self.driver.find_element(By.ID, "continue").click()
+
+            self.report_generator.add_test_result("Test 9","passed")
+            print("Test 9 : Check Out Success!")
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 9","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 9","failed",str(e))
+
+    def check_checkout(self):
+        try:
+            item_total = self.driver.find_element(By.CLASS_NAME, "summary_subtotal_label").text
+            tax = self.driver.find_element(By.CLASS_NAME, "summary_tax_label").text
+            total = self.driver.find_element(By.CLASS_NAME, "summary_total_label").text
+            print(f"{item_total}.")
+            print(f"{tax}.")
+            print(f"{total}")
+            print("="*30)
+
+            self.report_generator.add_test_result("Test 10","passed")
+            print("Test 10 : Checking data value Success!")
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 10","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 10","failed",str(e))
+
+    def finish(self):
+        try:
+            self.driver.find_element(By.ID, "finish").click()
+            #For failed condtion
+            complete = self.driver.find_element(By.CLASS_NAME, "complete-header1234asdf").text
+            print(complete)
+            self.driver.find_element(By.ID, "back-to-products").click()
+
+            self.report_generator.add_test_result("Test 11","passed")
+            print("Test 11 : Final State Completed!")
+        except AssertionError as e:
+            self.report_generator.add_test_result("Test 11","failed",str(e))
+        except Exception as e:
+            self.report_generator.add_test_result("Test 11","failed",str(e))
+
+    def main(self):
+        self.report_generator.start_timer()
+
+        self.open_browser()
+        self.login_test()
+        self.check_page_go()
+        self.add_to_cart()
+        self.remove_item()
+        self.view_order_items()
+        self.check_cart_page_go()
+        self.view_cart_ditail()
+        self.check_out()
+        self.check_checkout()
+        self.finish()
+
+        self.report_generator.generate_report()
+
+
+SwagTest(ReportGenerator(report_title="WaiWai Customized HTML Report")).main()
+
+
+
+
